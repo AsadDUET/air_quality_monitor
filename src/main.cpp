@@ -6,6 +6,33 @@
 #include "ThingSpeak.h" // always include thingspeak header file after other header files and custom macros
 #include <ESP_Mail_Client.h>
 
+#if defined(ESP32)
+#include <WiFi.h>
+#elif defined(ESP8266)
+#include <ESP8266WiFi.h>
+#endif
+#include <Firebase_ESP_Client.h>
+
+/* 1. Define the WiFi credentials */
+#define WIFI_SSID "WIFI_AP"
+#define WIFI_PASSWORD "WIFI_PASSWORD"
+
+/* 2. Define the Firebase project host name and API Key */
+#define FIREBASE_HOST "iotcloudesp32-711dd-default-rtdb.firebaseio.com"
+#define API_KEY "lZZskd1oSuaTSdUbmTGVDhw9acundHl7Qs2JZBJU"
+
+// /* 3. Define the user Email and password that alreadey registerd or added in your project */
+// #define USER_EMAIL "USER_EMAIL"
+// #define USER_PASSWORD "USER_PASSWORD"
+
+//Define Firebase Data object
+FirebaseData fbdo;
+
+FirebaseAuth auth;
+FirebaseConfig config;
+
+FirebaseJson json;
+
 #define DHTPIN 15
 #define DHTTYPE DHT22
 
@@ -48,7 +75,8 @@ DHT dht(DHTPIN, DHTTYPE);
 SMTPSession smtp;
 ESP_Mail_Session session;
 SMTP_Message message;
-
+String path = "/email/";
+String Path;
 void smtpCallback(SMTP_Status status);
 void send_mail();
 void setup()
@@ -108,7 +136,46 @@ void setup()
   {
     Serial.println(colour[hh]);
   }
+  config.host = FIREBASE_HOST;
+  config.api_key = API_KEY;
+  config.signer.tokens.legacy_token = API_KEY;
 
+  /* Assign the user sign in credentials */
+  // auth.user.email = USER_EMAIL;
+  // auth.user.password = USER_PASSWORD;
+
+  Firebase.begin(&config, &auth);
+  Firebase.reconnectWiFi(true);
+
+#if defined(ESP8266)
+  //Set the size of WiFi rx/tx buffers in the case where we want to work with large data.
+  fbdo.setBSSLBufferSize(1024, 1024);
+#endif
+
+  //Set the size of HTTP response buffers in the case where we want to work with large data.
+  fbdo.setResponseSize(1024);
+
+  //Set database read timeout to 1 minute (max 15 minutes)
+  Firebase.RTDB.setReadTimeout(&fbdo, 1000 * 60);
+  //tiny, small, medium, large and unlimited.
+  //Size and its write timeout e.g. tiny (1s), small (10s), medium (30s) and large (60s).
+  Firebase.RTDB.setwriteSizeLimit(&fbdo, "tiny");
+
+  //optional, set the decimal places for float and double data to be stored in database
+  Firebase.setFloatDigits(2);
+  Firebase.setDoubleDigits(6);
+
+  /*
+  This option allows get and delete functions (PUT and DELETE HTTP requests) works for device connected behind the
+  Firewall that allows only GET and POST requests.
+  
+  Firebase.enableClassicRequest(fbdo, true);
+  */
+
+// send_mail();
+// while(1){}
+  Serial.println("------------------------------------");
+  Serial.println("Set double test...");
   send_time = millis();
 }
 int i;
@@ -284,7 +351,7 @@ void send_mail()
   message.sender.name = "ESP Mail";
   message.sender.email = AUTHOR_EMAIL;
   message.subject = "IoT Warning !!";
-  message.addRecipient("Admin", emailRecipient);
+  // message.addRecipient("Admin", emailRecipient);
 
   // message.html.content = "<p>This is the <span style=\"color:#ff0000;\">html text</span> message.</p><p>The message was sent via ESP device.</p>";
 
@@ -329,15 +396,44 @@ void send_mail()
   /* Connect to server with the session config */
   if (!smtp.connect(&session))
     return;
-
   /* Start sending Email and close the session */
-  for (int hh = 0; hh < valid_mail; hh++)
+  // for (int hh = 0; hh < valid_mail; hh++)
+  // {
+  //   int tmp_len = colour[hh].length() + 1;
+  //   char tmp_array[tmp_len];
+  //   colour[hh].toCharArray(tmp_array,tmp_len);
+  //   message.addRecipient("Admin", tmp_array);
+  //   if (!MailClient.sendMail(&smtp, &message))
+  //     Serial.println("Error sending Email, " + smtp.errorReason());
+  // }
+  i = 0;
+  while (1)
   {
-    int tmp_len = colour[hh].length() + 1;
-    char tmp_array[tmp_len];
-    colour[hh].toCharArray(tmp_array,tmp_len);
-    message.addRecipient("Admin", tmp_array);
-    if (!MailClient.sendMail(&smtp, &message))
-      Serial.println("Error sending Email, " + smtp.errorReason());
+    Path = path + String(i + 1);
+    i++;
+    //Also can use Firebase.set instead of Firebase.setDouble
+    if (Firebase.RTDB.getString(&fbdo, Path.c_str()))
+    {
+      Serial.println("PASSED");
+      Serial.println("PATH: " + fbdo.dataPath());
+      Serial.println("TYPE: " + fbdo.dataType());
+      Serial.println("ETag: " + fbdo.ETag());
+
+      int tmp_len = fbdo.stringData().length()+1;
+      char tmp_array[tmp_len];
+      (fbdo.stringData()).toCharArray(tmp_array, tmp_len);
+      message.addRecipient(tmp_array, tmp_array);
+
+      Serial.print("VALUE: ");
+      Serial.printf("%s, %d",tmp_array,tmp_len);
+      Serial.println("------------------------------------");
+      Serial.println();
+      if (!MailClient.sendMail(&smtp, &message))
+        Serial.println("Error sending Email, " + smtp.errorReason());
+    }
+    else
+    {
+      break;
+    }
   }
 }
