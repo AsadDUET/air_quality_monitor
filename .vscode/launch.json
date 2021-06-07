@@ -1,5 +1,5 @@
 // AUTOMATICALLY GENERATED FILE. PLEASE DO NOT MODIFY IT MANUALLY
-
+//
 // PIO Unified Debugger
 //
 // Documentation: https://docs.platformio.org/page/plus/debugging.html
@@ -15,11 +15,11 @@
             "executable": "/run/media/asad/MyProject/project/github/air_quality_monitor/.pio/build/esp32doit-devkit-v1/firmware.elf",
             "projectEnvName": "esp32doit-devkit-v1",
             "toolchainBinDir": "/home/asad/.platformio/packages/toolchain-xtensa32/bin",
+            "internalConsoleOptions": "openOnSessionStart",
             "preLaunchTask": {
                 "type": "PlatformIO",
                 "task": "Pre-Debug"
-            },
-            "internalConsoleOptions": "openOnSessionStart"
+            }
         },
         {
             "type": "platformio-debug",
